@@ -234,6 +234,10 @@ export function prospectosDemo(): Prospecto[] {
       intentosAnteriores: "Rutinas de YouTube y apps que abandonó.",
       intencion: "Quiere resolverlo ya, está cansado de repetir el ciclo.",
       momento: "Puede empezar esta misma semana.",
+      aperturaAyuda: "Sí, está abierto a que lo acompañen.",
+      fitConfirmado: "sí",
+      capacidadDecision: "él mismo",
+      capacidadInversion: "Dice que si le sirve, puede darle prioridad.",
       fechaPrimerContacto: iso(6),
       fechaUltimoMensaje: iso(0),
       historial: [

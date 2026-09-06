@@ -22,6 +22,10 @@ const DISCOVERY: { campo: keyof Prospecto; label: string }[] = [
   { campo: "intentosAnteriores", label: "Intentos anteriores" },
   { campo: "intencion", label: "Intención" },
   { campo: "momento", label: "Momento" },
+  { campo: "aperturaAyuda", label: "Apertura a recibir ayuda" },
+  { campo: "fitConfirmado", label: "Fit confirmado (sí / no / parcial)" },
+  { campo: "capacidadDecision", label: "Capacidad de decisión (él / compartida / no)" },
+  { campo: "capacidadInversion", label: "Capacidad de inversión (contexto)" },
   { campo: "fitNotas", label: "Notas de fit" },
 ];
 

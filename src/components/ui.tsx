@@ -25,9 +25,9 @@ export function Badge({
 }
 
 export function BadgeTemperatura({ t }: { t: Temperatura }) {
-  const map = { frio: "azul", tibio: "ambar", caliente: "rojo" } as const;
-  const label = { frio: "Frío", tibio: "Tibio", caliente: "Caliente" };
-  const emoji = { frio: "🧊", tibio: "🌤️", caliente: "🔥" };
+  const map = { frio: "azul", tibio: "ambar", caliente: "rojo", no_calificado: "gris" } as const;
+  const label = { frio: "Frío", tibio: "Tibio", caliente: "Caliente", no_calificado: "No calificado" };
+  const emoji = { frio: "🧊", tibio: "🌤️", caliente: "🔥", no_calificado: "⛔" };
   return (
     <Badge color={map[t] as never}>
       {emoji[t]} {label[t]}

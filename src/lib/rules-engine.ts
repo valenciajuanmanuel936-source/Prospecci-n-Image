@@ -4,11 +4,15 @@
 import {
   Config,
   Decision,
+  DecisionOperativa,
   Fase,
+  faseLabel,
   faseOrden,
   MensajesPorCercania,
   Prospecto,
+  Readiness,
   Recomendacion,
+  Riesgo,
   Senal,
   Temperatura,
 } from "./types";
@@ -341,6 +345,155 @@ function minusc(s: string): string {
 }
 
 // ---------------------------------------------------------------
+// IMAGE Setting OS: gates de llamada, scoring, riesgo, decisión operativa
+// ---------------------------------------------------------------
+
+// Fase determinada por la primera variable obligatoria que falta (evidencia),
+// no por la última señal. Las situaciones especiales se resuelven antes.
+export function faseDeEvidencia(prospecto: Prospecto, senales: Senal[] = []): Fase {
+  if (!lleno(prospecto.motivo)) return "motivo";
+  if (!lleno(prospecto.situacionActual)) return "situacion";
+  if (!lleno(prospecto.problema)) {
+    return tiene(senales, "menciono_dificultad", "problema_ambiguo") ? "profundizacion" : "problema";
+  }
+  if (tiene(senales, "problema_ambiguo")) return "profundizacion";
+  if (!lleno(prospecto.impacto)) return "impacto";
+  if (!lleno(prospecto.resultadoDeseado)) return "resultado_deseado";
+  if (!lleno(prospecto.brecha)) return "brecha";
+  if (!lleno(prospecto.intencion)) return "intencion";
+  if (!lleno(prospecto.momento)) return "momento";
+  return "fit";
+}
+
+// Requisitos para invitar a una llamada + bloqueos estructurales.
+export function getCallReadiness(prospecto: Prospecto, senales: Senal[] = []): Readiness {
+  const faltan: string[] = [];
+  const bloqueos: string[] = [];
+
+  const req: [keyof Prospecto, string][] = [
+    ["problema", "Problema reconocido"],
+    ["impacto", "Impacto"],
+    ["resultadoDeseado", "Resultado deseado"],
+    ["brecha", "Brecha"],
+    ["intencion", "Intención"],
+    ["momento", "Momento"],
+  ];
+  for (const [campo, label] of req) if (!lleno(prospecto[campo])) faltan.push(label);
+
+  // Apertura a recibir ayuda
+  const abierto = lleno(prospecto.aperturaAyuda) || tiene(senales, "quiere_resolver_ahora", "solicita_llamada");
+  if (!abierto) faltan.push("Apertura a recibir ayuda");
+
+  // Fit
+  const fit = (prospecto.fitConfirmado || "").trim().toLowerCase();
+  if (!fit) faltan.push("Fit confirmado");
+  else if (fit === "no" || fit.startsWith("no ")) bloqueos.push("Sin fit");
+
+  // Capacidad de decisión
+  const dec = (prospecto.capacidadDecision || "").trim().toLowerCase();
+  if (!dec) faltan.push("Capacidad de decisión");
+  else if (dec === "no") bloqueos.push("Sin capacidad de decisión");
+
+  // Capacidad de inversión (solo bloquea si explícitamente "no")
+  const inv = (prospecto.capacidadInversion || "").trim().toLowerCase();
+  if (inv === "no") bloqueos.push("Sin capacidad de inversión");
+
+  // Señales de bloqueo / momento no real
+  if (tiene(senales, "no_interesado")) bloqueos.push("Rechazo explícito");
+  if (tiene(senales, "satisfecho", "sin_problema") && !tiene(senales, "quiere_resolver_ahora")) {
+    bloqueos.push("Sin problema reconocido");
+  }
+  if (tiene(senales, "algun_dia") && !tiene(senales, "quiere_resolver_ahora")) {
+    faltan.push("Momento real (no 'algún día')");
+  }
+
+  return { ready: faltan.length === 0 && bloqueos.length === 0, faltan, bloqueos };
+}
+
+// Scoring de priorización (P I O G T F D E), 0..2 cada uno; máx 16.
+export function calculateScore(
+  prospecto: Prospecto,
+  senales: Senal[] = []
+): { score: number; bloqueos: string[] } {
+  const s = senales;
+  const P = lleno(prospecto.problema) ? 2 : tiene(s, "menciono_dificultad", "problema_ambiguo") ? 1 : 0;
+  const I = lleno(prospecto.impacto) ? 2 : tiene(s, "menciono_impacto") ? 1 : 0;
+  const O = lleno(prospecto.resultadoDeseado) ? 2 : tiene(s, "menciono_resultado") ? 1 : 0;
+  const G = lleno(prospecto.brecha) ? 2 : tiene(s, "menciono_brecha") ? 1 : 0;
+  let T = 0;
+  if (tiene(s, "algun_dia") && !tiene(s, "quiere_resolver_ahora")) T = 0;
+  else if (lleno(prospecto.intencion) && lleno(prospecto.momento)) T = 2;
+  else if (lleno(prospecto.intencion) || lleno(prospecto.momento) || tiene(s, "quiere_resolver_ahora")) T = 1;
+  const fit = (prospecto.fitConfirmado || "").trim().toLowerCase();
+  const F = fit && fit !== "no" ? 2 : fit === "no" ? 0 : 1;
+  const dec = (prospecto.capacidadDecision || "").trim().toLowerCase();
+  const D = dec && dec !== "no" ? 2 : dec === "no" ? 0 : 1;
+  const E = tiene(s, "respondio_detalle")
+    ? 2
+    : tiene(s, "respondio_corto", "hizo_pregunta", "mostro_curiosidad") || prospecto.historial.some((m) => m.emisor === "prospecto")
+      ? 1
+      : 0;
+
+  const score = P + I + O + G + T + F + D + E;
+  const { bloqueos } = getCallReadiness(prospecto, senales);
+  if (!lleno(prospecto.problema) && !tiene(s, "menciono_dificultad")) {
+    if (!bloqueos.includes("Sin problema reconocido")) bloqueos.push("Problema no reconocido");
+  }
+  return { score, bloqueos };
+}
+
+// Mapea la decisión interna a la decisión operativa del OS.
+export function toOperationalDecision(decision: Decision): DecisionOperativa {
+  switch (decision) {
+    case "proponer_llamada":
+      return "INVITE_TO_CALL";
+    case "agendar_llamada":
+      return "BOOK_CALL";
+    case "hacer_seguimiento":
+      return "FOLLOW_UP";
+    case "dejar_nutricion":
+      return "NURTURE";
+    case "cerrar":
+    case "descartar":
+      return "CLOSE";
+    default:
+      return "CONTINUE";
+  }
+}
+
+// Auditor determinista del mensaje elegido.
+export function detectRisk(
+  mensaje: string,
+  senales: Senal[],
+  decisionOperativa: DecisionOperativa,
+  readiness: Readiness,
+  fase: Fase
+): Riesgo {
+  const preguntas = (mensaje.match(/\?/g) || []).length;
+  if (decisionOperativa === "INVITE_TO_CALL" && !readiness.ready) return "PREMATURE_PITCH";
+  if (preguntas > 1) return "MULTIPLE_QUESTIONS";
+  if (tiene(senales, "pregunto_precio")) {
+    const bajo = mensaje.toLowerCase();
+    const responde =
+      /\d/.test(mensaje) ||
+      bajo.includes("precio") ||
+      bajo.includes("valor") ||
+      bajo.includes("inversión") ||
+      bajo.includes("inversion") ||
+      bajo.includes("cuesta");
+    if (!responde) return "PRICE_EVASION";
+  }
+  const cierreFases: Fase[] = ["descartado", "nutricion", "cerrado_ganado", "cerrado_perdido"];
+  if (preguntas === 0 && decisionOperativa === "CONTINUE" && !cierreFases.includes(fase)) return "NO_NEXT_STEP";
+  return "NONE";
+}
+
+function buildPorQue(evidencia: string, fase: Fase, variable: string, objetivo: string): string {
+  const ev = evidencia.startsWith("Todavía") ? "aún hay poca evidencia" : `dijo: ${evidencia}`;
+  return `Como ${ev}, la conversación está en «${faseLabel(fase)}». La única variable que falta es ${variable.toLowerCase()}, por eso el mensaje busca ${objetivo.toLowerCase()} con una sola pregunta.`;
+}
+
+// ---------------------------------------------------------------
 // Orquestador
 // ---------------------------------------------------------------
 export function buildRecommendation(
@@ -349,23 +502,62 @@ export function buildRecommendation(
 ): Recomendacion {
   const { prospecto, faseActual, senales, hayRespuesta } = ctx;
 
+  const readiness = getCallReadiness(prospecto, senales);
+
   const decisionPrevia = getRecommendedDecision(ctx);
   let fase = getRecommendedPhase(faseActual, senales, hayRespuesta);
-  // Reconciliar la fase con la decisión (la decisión conoce la evidencia).
-  if (decisionPrevia === "proponer_llamada") fase = "transicion_llamada";
-  else if (decisionPrevia === "validar_fit" && faseOrden(fase) < faseOrden("fit")) fase = "fit";
+  let decision: Decision = decisionPrevia;
 
-  const temperatura = calculateTemperature(
+  // Fase por EVIDENCIA (no solo por la última señal), salvo situaciones especiales.
+  const especial =
+    tiene(
+      senales,
+      "no_interesado",
+      "solicita_llamada",
+      "pregunto_por_juan",
+      "solicita_audio",
+      "quiere_negociar",
+      "relacion_desconocida",
+      "condicion_delicada",
+      "satisfecho",
+      "sin_problema"
+    ) ||
+    (faseActual === "apertura" && !hayRespuesta);
+  if (!especial && hayRespuesta) fase = faseDeEvidencia(prospecto, senales);
+
+  // Reconciliar la fase con la decisión (la decisión conoce la evidencia).
+  if (decision === "proponer_llamada") fase = "transicion_llamada";
+  else if (decision === "validar_fit" && faseOrden(fase) < faseOrden("fit")) fase = "fit";
+
+  // Gate de llamada: nunca invitar sin cumplir todos los requisitos.
+  if (decision === "proponer_llamada" && !readiness.ready) {
+    decision = "validar_fit";
+    fase = "fit";
+  }
+
+  let temperatura = calculateTemperature(
     { fase, problema: prospecto.problema, intencion: prospecto.intencion, momento: prospecto.momento },
     senales
   );
-  const decision = decisionPrevia;
+  if (readiness.bloqueos.length > 0) temperatura = "no_calificado";
+
   const variableQueFalta = getMissingVariable({ ...prospecto, fase });
   const evidencia = getEvidence(prospecto);
   const mensajes = getMessageSuggestions(prospecto, fase, senales, config);
   const alertaSalud = getHealthAlert(senales);
 
   const { lectura, objetivo, advertencia } = leerSituacion(ctx, fase, decision);
+
+  const decisionOperativa = toOperationalDecision(decision);
+  const mensajeElegido =
+    prospecto.cercania === "muy_cercana"
+      ? mensajes.muyCercana
+      : prospecto.cercania === "cercana"
+        ? mensajes.cercana
+        : mensajes.menosCercana;
+  const riesgo = detectRisk(mensajeElegido, senales, decisionOperativa, readiness, fase);
+  const { score } = calculateScore(prospecto, senales);
+  const porQue = buildPorQue(evidencia, fase, variableQueFalta, objetivo);
 
   return {
     fase,
@@ -378,6 +570,11 @@ export function buildRecommendation(
     advertencia,
     alertaSalud,
     decision,
+    porQue,
+    riesgo,
+    decisionOperativa,
+    score,
+    readiness,
   };
 }
 

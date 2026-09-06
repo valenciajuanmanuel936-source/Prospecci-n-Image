@@ -49,7 +49,7 @@ export const CERCANIAS: { value: Cercania; label: string; desc: string }[] = [
 ];
 
 // ---------- Temperatura ----------
-export type Temperatura = "frio" | "tibio" | "caliente";
+export type Temperatura = "frio" | "tibio" | "caliente" | "no_calificado";
 
 // ---------- Fases del setting (26) ----------
 export type Fase =
@@ -281,6 +281,11 @@ export interface Prospecto {
   intencion?: string;
   momento?: string;
   fitNotas?: string;
+  // Variables de fit y capacidad (metodología IMAGE Setting OS)
+  aperturaAyuda?: string; // ¿está abierto a recibir ayuda?
+  fitConfirmado?: string; // ¿IMAGE puede resolver su caso? (texto libre; "no" bloquea llamada)
+  capacidadDecision?: string; // ¿decide él o alguien más? ("no" bloquea llamada)
+  capacidadInversion?: string; // contexto económico ("no" bloquea llamada)
   // Resultado comercial (se diferencia facturación de dinero cobrado)
   ofertaPresentada?: boolean;
   facturacionContratada?: number;
@@ -458,6 +463,48 @@ export interface MensajesPorCercania {
   menosCercana: string;
 }
 
+// ---------- Decisión operativa (IMAGE Setting OS) ----------
+export type DecisionOperativa =
+  | "CONTINUE"
+  | "INVITE_TO_CALL"
+  | "BOOK_CALL"
+  | "FOLLOW_UP"
+  | "NURTURE"
+  | "CLOSE";
+
+// ---------- Riesgo del mensaje (auditor de calidad) ----------
+export type Riesgo =
+  | "NONE"
+  | "ASSUMPTION"
+  | "INTERROGATION"
+  | "PREMATURE_PITCH"
+  | "FABRICATED_PAIN"
+  | "FABRICATED_URGENCY"
+  | "PRICE_EVASION"
+  | "MULTIPLE_QUESTIONS"
+  | "IGNORED_CONTEXT"
+  | "NO_NEXT_STEP";
+
+export const RIESGO_LABELS: Record<Riesgo, string> = {
+  NONE: "Sin riesgos",
+  ASSUMPTION: "Estás asumiendo algo no confirmado",
+  INTERROGATION: "Suena a interrogatorio",
+  PREMATURE_PITCH: "Propuesta prematura",
+  FABRICATED_PAIN: "Dolor inventado",
+  FABRICATED_URGENCY: "Urgencia inventada",
+  PRICE_EVASION: "Estás evadiendo una pregunta directa",
+  MULTIPLE_QUESTIONS: "Más de una pregunta principal",
+  IGNORED_CONTEXT: "Ignora el último mensaje",
+  NO_NEXT_STEP: "Sin próximo paso claro",
+};
+
+// Requisitos de la llamada que aún faltan.
+export interface Readiness {
+  ready: boolean;
+  faltan: string[]; // etiquetas de gates pendientes
+  bloqueos: string[]; // bloqueos estructurales (fit/capacidad/rechazo)
+}
+
 export interface Recomendacion {
   fase: Fase;
   temperatura: Temperatura;
@@ -469,4 +516,10 @@ export interface Recomendacion {
   advertencia: string;
   alertaSalud: string | null;
   decision: Decision;
+  // --- Ampliación IMAGE Setting OS (campos opcionales, compatibles) ---
+  porQue?: string;
+  riesgo?: Riesgo;
+  decisionOperativa?: DecisionOperativa;
+  score?: number; // 0..16
+  readiness?: Readiness;
 }

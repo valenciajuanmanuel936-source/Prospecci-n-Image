@@ -1,6 +1,6 @@
 "use client";
-import { AlertTriangle, Compass, HeartPulse, ListChecks, Target, Thermometer } from "lucide-react";
-import { Cercania, decisionLabel, faseLabel, Recomendacion } from "@/lib/types";
+import { AlertTriangle, Compass, HeartPulse, Link2, ListChecks, ShieldAlert, Target, Thermometer } from "lucide-react";
+import { Cercania, decisionLabel, faseLabel, Recomendacion, RIESGO_LABELS } from "@/lib/types";
 import { cx } from "@/lib/utils";
 import { Badge, BadgeTemperatura, CopyButton } from "./ui";
 
@@ -40,6 +40,7 @@ export function RecommendationPanel({ rec, cercania, className }: { rec: Recomen
           <Badge color="ambar">{faseLabel(rec.fase)}</Badge>
           <BadgeTemperatura t={rec.temperatura} />
           <Badge color={decisionColor(rec.decision)}>Decisión: {decisionLabel(rec.decision)}</Badge>
+          {typeof rec.score === "number" && <Badge color="carbon">Score {rec.score}/16</Badge>}
         </div>
       </div>
 
@@ -55,11 +56,25 @@ export function RecommendationPanel({ rec, cercania, className }: { rec: Recomen
         <Item icono={<ListChecks size={16} />} titulo="Evidencia">{rec.evidencia}</Item>
         <Item icono={<Target size={16} />} titulo="Variable que falta">{rec.variableQueFalta}</Item>
         <Item icono={<Target size={16} />} titulo="Objetivo">{rec.objetivo}</Item>
+        {rec.porQue && <Item icono={<Link2 size={16} />} titulo="Por qué">{rec.porQue}</Item>}
+
+        {rec.readiness && !rec.readiness.ready && rec.readiness.faltan.length > 0 && (
+          <Item icono={<Target size={16} />} titulo="Para invitar a llamada, falta">
+            {rec.readiness.faltan.join(" · ")}
+          </Item>
+        )}
 
         {rec.advertencia && (
           <div className="flex items-start gap-2 rounded-xl border border-ambar-200 bg-ambar-50 px-4 py-3 text-sm text-ambar-800">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
             <span>{rec.advertencia}</span>
+          </div>
+        )}
+
+        {rec.riesgo && rec.riesgo !== "NONE" && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <ShieldAlert size={18} className="mt-0.5 shrink-0" />
+            <span><b>Riesgo:</b> {RIESGO_LABELS[rec.riesgo]}. Revisa el mensaje antes de enviarlo.</span>
           </div>
         )}
 

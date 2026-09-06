@@ -82,7 +82,7 @@ describe("4. No proponer llamada demasiado pronto", () => {
     expect(rec.decision).not.toBe("proponer_llamada");
     expect(rec.decision).toBe("validar_fit");
   });
-  it("con evidencia completa SÍ propone llamada", () => {
+  it("6 variables PERO sin fit/decisión (gates incompletos) => NO propone llamada", () => {
     const p = prospectoBase({
       fase: "momento",
       problema: "x",
@@ -92,12 +92,33 @@ describe("4. No proponer llamada demasiado pronto", () => {
       intencion: "x",
       momento: "x",
     });
-    expect(hasFullEvidence(p)).toBe(true);
+    expect(hasFullEvidence(p)).toBe(true); // evidencia base sí, pero faltan gates de fit/decisión
+    const rec = buildRecommendation(
+      ctx({ prospecto: p, faseActual: "momento", senales: ["quiere_resolver_ahora"], hayRespuesta: true })
+    );
+    expect(rec.decision).not.toBe("proponer_llamada");
+    expect(rec.decisionOperativa).not.toBe("INVITE_TO_CALL");
+  });
+
+  it("con TODOS los gates (fit, decisión, apertura) SÍ propone llamada", () => {
+    const p = prospectoBase({
+      fase: "momento",
+      problema: "x",
+      impacto: "x",
+      resultadoDeseado: "x",
+      brecha: "x",
+      intencion: "x",
+      momento: "x",
+      aperturaAyuda: "sí",
+      fitConfirmado: "sí",
+      capacidadDecision: "él mismo",
+    });
     const rec = buildRecommendation(
       ctx({ prospecto: p, faseActual: "momento", senales: ["quiere_resolver_ahora"], hayRespuesta: true })
     );
     expect(rec.decision).toBe("proponer_llamada");
     expect(rec.fase).toBe("transicion_llamada");
+    expect(rec.decisionOperativa).toBe("INVITE_TO_CALL");
   });
 });
 
