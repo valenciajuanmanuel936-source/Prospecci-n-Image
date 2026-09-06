@@ -12,6 +12,7 @@ import React, {
   useState,
 } from "react";
 import { cargarDatos, guardarDatos } from "./storage";
+import { supabaseEnabled, cargarWorkspace, guardarWorkspace, suscribirWorkspace } from "./supabase";
 import { crearSesionVacia, datosIniciales, prospectosDemo } from "./seed";
 import { hoyISO } from "./rules-engine";
 import {
@@ -56,22 +57,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(() => datosIniciales(true));
   const [cargando, setCargando] = useState(true);
   const primeraCarga = useRef(true);
+  const aplicandoRemoto = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modoNube = supabaseEnabled;
 
+  // Carga inicial: nube (Supabase) o local (localStorage).
   useEffect(() => {
-    setData(cargarDatos());
-    setCargando(false);
-  }, []);
+    let cancelado = false;
+    (async () => {
+      if (modoNube) {
+        let remoto = await cargarWorkspace();
+        if (!remoto) {
+          // Primera vez: sembramos el workspace compartido.
+          remoto = datosIniciales(true);
+          await guardarWorkspace(remoto);
+        }
+        if (!cancelado) {
+          setData(remoto);
+          setCargando(false);
+        }
+      } else if (!cancelado) {
+        setData(cargarDatos());
+        setCargando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [modoNube]);
 
+  // Autoguardado (con debounce en la nube para no saturar).
   useEffect(() => {
     if (cargando) return;
     if (primeraCarga.current) {
       primeraCarga.current = false;
       return;
     }
-    guardarDatos(data);
-  }, [data, cargando]);
+    if (aplicandoRemoto.current) {
+      // Cambio que vino del servidor: no lo re-guardamos.
+      aplicandoRemoto.current = false;
+      return;
+    }
+    if (modoNube) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => guardarWorkspace(data), 700);
+    } else {
+      guardarDatos(data);
+    }
+  }, [data, cargando, modoNube]);
 
+  // Sincronización: tiempo real (nube) o entre pestañas (local).
   useEffect(() => {
+    if (modoNube) {
+      return suscribirWorkspace((remoto) => {
+        aplicandoRemoto.current = true;
+        setData(remoto);
+      });
+    }
     const handler = (e: StorageEvent) => {
       if (e.key === KEY && e.newValue) {
         try {
@@ -83,7 +125,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
-  }, []);
+  }, [modoNube]);
 
   const actualizarConfig = useCallback((c: Partial<Config>) => {
     setData((d) => ({ ...d, config: { ...d.config, ...c } }));

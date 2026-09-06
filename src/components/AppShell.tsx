@@ -7,12 +7,14 @@ import {
   CalendarClock,
   Home,
   KanbanSquare,
+  LogOut,
   MessageSquarePlus,
   Settings,
   Users,
 } from "lucide-react";
 import { cx } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { supabaseEnabled, signOut } from "@/lib/supabase";
 
 const NAV = [
   { href: "/", label: "Hoy", icon: Home, corto: "Hoy" },
@@ -68,8 +70,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="px-6 py-4 text-xs text-carbon-400">
-          {data.config.nombreOperadora} · desde la cuenta de {data.config.nombreLider}
+        <div className="space-y-2 px-6 py-4">
+          <p className="text-xs text-carbon-400">
+            {data.config.nombreOperadora} · desde la cuenta de {data.config.nombreLider}
+          </p>
+          {supabaseEnabled && (
+            <button
+              onClick={() => signOut()}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-carbon-500 hover:text-carbon-900"
+            >
+              <LogOut size={14} /> Cerrar sesión
+            </button>
+          )}
         </div>
       </aside>
 
