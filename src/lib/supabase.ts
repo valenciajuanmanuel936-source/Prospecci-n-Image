@@ -7,7 +7,9 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { AppData } from "./types";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Acepta el nombre nuevo (publishable) o el clásico (anon). Cualquiera sirve.
+const anonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Cliente único (o null si no está configurado).
 export const supabase: SupabaseClient | null =
